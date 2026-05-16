@@ -7,6 +7,8 @@ Objetivo:
 - manter a logica de acesso separada do parser
 """
 
+import time
+
 import requests
 
 from config import (
@@ -33,6 +35,12 @@ class LiquipediaClient:
     """
 
     def __init__(self):
+        """
+        Inicializa o cliente com configuracoes padrao da API.
+
+        Tambem cria uma sessao HTTP reutilizavel e prepara o controle
+        de tempo usado para respeitar o intervalo entre requisicoes.
+        """
         self.endpoint = API_ENDPOINT
         self.headers = DEFAULT_HEADERS
         self.timeout = API_TIMEOUT_SECONDS
@@ -43,40 +51,93 @@ class LiquipediaClient:
 
     def get_page_content(self, page_title):
         """
-        Buscar o conteudo bruto de uma pagina da Liquipedia.
+        Busca o wikitexto bruto de uma pagina da Liquipedia.
 
-        Responsabilidades futuras:
-        - montar os parametros da chamada action=query
-        - incluir prop=revisions
-        - incluir rvslots e rvprop padrao
-        - enviar requisicao para API_ENDPOINT
-        - retornar payload JSON
+        Esse e o metodo principal para o MVP, pois o parser de partidas
+        deve trabalhar sobre o conteudo retornado por action=query.
         """
-        pass
+        params = self.build_query_params(page_title)
+        data = self.request(params)
+        pages = data.get("query", {}).get("pages", [])
+
+        if not pages:
+            return None
+        
+        page = pages[0]
+
+        if page.get("missing"):
+            return None
+        
+        revisions = page.get("revisions", [])
+
+        if not revisions:
+            return None
+
+        revision = revisions[0]
+        slots = revision.get("slots", {})
+        main_slot = slots.get("main", {})
+        content = main_slot.get("content")
+
+        return content
 
     def get_page_metadata(self, page_title):
         """
-        Buscar metadados basicos da pagina.
+        Busca metadados basicos de uma pagina.
 
-        Pode ser util para:
-        - validar se a pagina existe
-        - recuperar informacoes gerais antes da extracao completa
+        Serve para validar se a pagina existe e recuperar informacoes
+        simples antes de tentar extrair o conteudo completo.
         """
-        pass
+        params = {
+            "action": DEFAULT_ACTION,
+            "format": DEFAULT_FORMAT,
+            "formatversion": DEFAULT_FORMAT_VERSION,
+            "titles": page_title,
+            "prop": "info",
+        }
+
+        data = self.request(params)
+
+        pages = data.get("query", {}).get("pages", [])
+
+        if not pages:
+            return None
+
+        page = pages[0]
+
+        metadata = {
+            "pageid": page.get("pageid"),
+            "title": page.get("title"),
+            "missing": page.get("missing", False),
+            "invalid": page.get("invalid", False),      
+        }
+
+        return metadata
 
     def parse_page_html(self, page_title):
         """
-        Buscar a pagina usando action=parse.
+        Busca o HTML renderizado de uma pagina via action=parse.
 
-        Observacao:
-        - esse metodo deve ser tratado como mais caro
-        - deve respeitar o intervalo maior definido para parse
-        - sera usado apenas quando realmente necessario
+        Esse metodo e secundario e deve ser usado apenas para inspecao
+        ou casos em que o wikitexto bruto nao for suficiente.
         """
-        pass
+        params = self.build_parse_params(page_title)
+        data = self.request(params, is_parse=True)
+
+        parse_data = data.get("parse", {})
+        text_data = parse_data.get("text")
+
+        if isinstance(text_data, dict):
+            return text_data.get("*")
+        
+        return text_data
 
     def build_query_params(self, page_title):
-        
+        """
+        Monta os parametros da chamada action=query.
+
+        Essa chamada busca as revisoes da pagina e retorna o conteudo
+        bruto que sera usado pelo parser.
+        """
         params = {
             "action": DEFAULT_ACTION,
             "format": DEFAULT_FORMAT,
@@ -91,31 +152,61 @@ class LiquipediaClient:
     
     def build_parse_params(self, page_title):
         """
-        Montar o conjunto de parametros da chamada action=parse.
-        """
-        pass
+        Monta os parametros da chamada action=parse.
 
-    def request(self, params):
+        Essa chamada retorna o HTML renderizado da pagina, usado como
+        apoio para investigacao da estrutura da Liquipedia.
         """
-        Metodo generico para executar uma chamada na API.
+        params = {
+            "action": "parse",
+            "format": DEFAULT_FORMAT,
+            "formatversion": DEFAULT_FORMAT_VERSION,
+            "page": page_title,
+            "prop": "text",
+        }
 
-        Responsabilidades futuras:
-        - aplicar headers padrao
-        - aplicar timeout
-        - respeitar rate limit
-        - tratar erros HTTP
-        - converter resposta para JSON
+        return params
+        
+
+    def request(self, params, is_parse=False):
         """
-        pass
+        Executa uma requisicao HTTP generica contra a API da Liquipedia.
+
+        Centraliza headers, timeout, controle de intervalo, validacao
+        de erro HTTP e conversao da resposta para JSON.
+        """
+        self.wait_before_request(is_parse=is_parse)
+
+        response = self.session.get(
+            self.endpoint,
+            params=params,
+            headers=self.headers,
+            timeout=self.timeout,
+        )
+
+        self.last_request_time = time.time()
+
+        response.raise_for_status()
+
+        return response.json()
+
 
     def wait_before_request(self, is_parse=False):
         """
-        Controlar o intervalo entre requisicoes.
+        Aguarda o tempo minimo entre chamadas para respeitar a API.
 
-        Se is_parse for True:
-        - usar PARSE_REQUEST_INTERVAL_SECONDS
-
-        Caso contrario:
-        - usar REQUEST_INTERVAL_SECONDS
+        Usa um intervalo normal para action=query e um intervalo maior
+        para action=parse, que e uma chamada mais custosa.
         """
-        pass
+        interval = self.parse_interval if is_parse else self.interval
+
+        if self.last_request_time is None:
+            return
+
+        current_time = time.time()
+        elapsed_time = current_time - self.last_request_time
+        remaining_time = interval - elapsed_time
+
+        if remaining_time > 0:
+            time.sleep(remaining_time)
+
