@@ -1,7 +1,19 @@
 from liquipedia_client import LiquipediaClient
 from liquipedia_parser import LiquipediaMatchParser
+from validators import MatchValidator
 
 PAGE_TITLE = "CS_Asia_Championships/2026"
+
+
+def print_warnings(warnings):
+    if not warnings:
+        return
+
+    print("Warnings:")
+
+    for warning in warnings:
+        print(f"  - {warning}")
+
 
 def print_maps(maps):
     for match_map in maps:
@@ -25,12 +37,13 @@ def print_maps(maps):
             )
 
 
-def print_series(series_list):
+def print_series(series_list, validator):
     print(f"Total de series encontradas: {len(series_list)}")
 
     for index, series in enumerate(series_list, start=1):
         team1_name = series.team1_name or "TBD"
         team2_name = series.team2_name or "TBD"
+        warnings = validator.validate_series(series)
 
         print("-" * 80)
         print(f"[{index}] {team1_name} vs {team2_name}")
@@ -42,11 +55,13 @@ def print_series(series_list):
         )
 
         print_maps(series.maps)
+        print_warnings(warnings)
 
 
 def main():
     client = LiquipediaClient()
     parser = LiquipediaMatchParser()
+    validator = MatchValidator()
 
     print(f"Buscando pagina: {PAGE_TITLE}")
 
@@ -58,7 +73,7 @@ def main():
 
     series_list = parser.parse_page(wikitext, PAGE_TITLE)
 
-    print_series(series_list)
+    print_series(series_list, validator)
 
   
 if __name__ == "__main__":
