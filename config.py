@@ -53,6 +53,12 @@ TEST_PAGE_OVERTIME = "Intel_Extreme_Masters/2026/Rio"
 TEST_PAGE_MATCHES_PORTAL = "Portal:Matches"
 TEST_PAGE_URL = "https://liquipedia.net/counterstrike/Portal:Matches"
 
+# BLOCO 6.1: PAGINAS-ALVO DA COLETA
+TARGET_PAGES = [
+    "CS_Asia_Championships/2026",
+    "Intel_Extreme_Masters/2026/Cologne/Stage_1",
+]
+
 # BLOCO 7: CONFIGURACOES DE LOG
 LOG_LEVEL = "INFO"
 LOG_FORMAT = "%(asctime)s - %(levelname)s - %(message)s"

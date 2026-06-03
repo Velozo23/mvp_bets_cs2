@@ -1,8 +1,8 @@
 # MVP Bets CS2
 
 Projeto em desenvolvimento para coletar partidas de Counter-Strike 2 na
-Liquipedia, transformar os dados em estruturas padronizadas e, nas proximas
-etapas, persistir os resultados em SQLite.
+Liquipedia, transformar os dados em estruturas padronizadas e persistir os
+resultados em SQLite.
 
 O foco do MVP e extrair informacoes de series e mapas a partir do wikitexto
 retornado pela MediaWiki API da Liquipedia.
@@ -20,8 +20,8 @@ Liquipedia API
 -> SQLite
 ```
 
-Nesta fase, o projeto ja cobre a coleta via API e boa parte do parser de
-partidas.
+Nesta fase, o MVP ja cobre o fluxo completo de coleta, parsing, validacao,
+upsert e persistencia em SQLite.
 
 ## Escopo Do MVP
 
@@ -42,7 +42,7 @@ Fora do escopo imediato:
 - estatisticas avancadas de jogador
 - scraping direto do HTML publico
 - integracao com outras fontes
-- atualizacao incremental sofisticada
+- normalizacao avancada de datas e enriquecimento com outras fontes
 
 ## Arquivos Principais
 
@@ -54,7 +54,8 @@ Centraliza configuracoes do projeto, como:
 - headers HTTP
 - intervalos entre requisicoes
 - paginas de teste
-- configuracoes futuras do SQLite
+- paginas-alvo da coleta em `TARGET_PAGES`
+- configuracoes do SQLite
 
 ### `liquipedia_client.py`
 
@@ -115,6 +116,68 @@ Script manual para validar o parser em uma pagina real.
 Ele busca uma pagina da Liquipedia, executa o parser e imprime um resumo das
 series encontradas.
 
+### `validators.py`
+
+Valida objetos `MatchSeries` e `MatchMap`.
+
+Principais responsabilidades:
+
+- identificar series sem times
+- identificar series sem data bruta
+- identificar series sem mapas
+- identificar mapas sem nome ou status
+- identificar mapas jogados sem placar
+- identificar mapas finalizados empatados
+- permitir que a coleta continue mesmo com warnings
+
+### `database.py`
+
+Camada de infraestrutura do SQLite.
+
+Responsavel por:
+
+- criar a pasta `data/`
+- abrir conexoes com o banco
+- criar as tabelas `match_series` e `match_maps`
+
+### `repository.py`
+
+Camada de persistencia dos dados.
+
+Responsavel por:
+
+- salvar `MatchSeries` em `match_series`
+- salvar `MatchMap` em `match_maps`
+- associar mapas com a serie usando `series_id`
+- inserir novas series
+- atualizar series ja existentes via upsert
+
+O upsert atual usa como chave logica:
+
+```text
+page_title + team1_name + team2_name + match_datetime_raw
+```
+
+Quando uma serie ja existe, o repository atualiza os dados da serie, remove os
+mapas antigos associados e insere novamente os mapas parseados no estado mais
+recente.
+
+### `collect_matches.py`
+
+Orquestrador principal do MVP.
+
+Fluxo executado:
+
+```text
+LiquipediaClient
+-> LiquipediaMatchParser
+-> MatchValidator
+-> MatchRepository
+-> SQLite
+```
+
+As paginas coletadas sao definidas em `TARGET_PAGES`, no `config.py`.
+
 ## Como Rodar
 
 Os exemplos abaixo assumem terminal bash no VS Code em ambiente Windows.
@@ -131,14 +194,26 @@ Os exemplos abaixo assumem terminal bash no VS Code em ambiente Windows.
 ./.venv/Scripts/python.exe ./test_liquipedia_parser.py
 ```
 
-O teste do parser atualmente usa:
+### Rodar a coleta completa
+
+```bash
+./.venv/Scripts/python.exe ./collect_matches.py
+```
+
+### Consultar contagem no SQLite
+
+```bash
+./.venv/Scripts/python.exe -c "from database import Database; db=Database(); conn=db.get_connection(); print(conn.execute('SELECT COUNT(*) FROM match_series').fetchone()[0]); print(conn.execute('SELECT COUNT(*) FROM match_maps').fetchone()[0]); conn.close()"
+```
+
+A coleta atualmente usa as paginas configuradas em `TARGET_PAGES`:
 
 ```text
 CS_Asia_Championships/2026
+Intel_Extreme_Masters/2026/Cologne/Stage_1
 ```
 
-Essa pagina foi escolhida por conter partidas ja finalizadas e partidas futuras,
-o que ajuda a validar cenarios reais de campeonato em andamento.
+Essa lista fica configurada no `config.py`.
 
 ## Exemplo De Saida Do Parser
 
@@ -172,13 +247,19 @@ Concluido:
 - calculo de vencedor de mapa
 - calculo de placar e vencedor da serie
 - teste manual do parser com pagina real
+- validacao de series e mapas
+- criacao do banco SQLite
+- persistencia de series e mapas
+- orquestrador final de coleta
+- upsert de series ja coletadas
 
-Proximas etapas:
+Melhorias futuras:
 
-- criar `validators.py` para identificar dados incompletos ou inconsistentes
-- criar camada SQLite (`database.py`)
-- criar repositorio de persistencia (`repository.py`)
-- criar orquestrador final de coleta (`collect_matches.py`)
+- limpar registros fake usados durante testes manuais
+- criar script de inspecao do banco
+- normalizar `match_datetime`
+- criar testes automatizados com `pytest`
+- ampliar suporte a outras estruturas da Liquipedia
 
 ## Observacoes
 
@@ -188,3 +269,7 @@ com `pytest`.
 
 A estrategia atual prioriza clareza e rastreabilidade antes de otimizar ou
 generalizar demais o parser.
+
+Ao rodar `collect_matches.py` mais de uma vez, o upsert evita inserir novamente
+as mesmas series e atualiza os registros existentes com o estado mais recente
+retornado pela Liquipedia.

@@ -109,6 +109,59 @@ class MatchRepository:
         for match_map in maps:
             self.save_map(connection, series_id, match_map)
 
+    def update_series(self, connection, series_id: int, series: MatchSeries):
+        cursor = connection.cursor()
+
+        cursor.execute(
+            """
+            UPDATE match_series
+            SET
+                source = ?,
+                page_title = ?,
+                event_name = ?,
+                stage = ?,
+                team1_name = ?,
+                team2_name = ?,
+                match_datetime_raw = ?,
+                match_datetime = ?,
+                match_finished = ?,
+                series_type = ?,
+                series_score_team1 = ?,
+                series_score_team2 = ?,
+                series_winner = ?,
+                collected_at = ?
+            WHERE id = ?
+            """,
+            (
+                series.source,
+                series.page_title,
+                series.event_name,
+                series.stage,
+                series.team1_name,
+                series.team2_name,
+                series.match_datetime_raw,
+                self.datetime_to_text(series.match_datetime),
+                self.bool_to_int(series.match_finished),
+                series.series_type,
+                series.series_score_team1,
+                series.series_score_team2,
+                series.series_winner,
+                self.datetime_to_text(series.collected_at),
+                series_id,
+            ),
+        )
+
+    def delete_maps_by_series_id(self, connection, series_id: int):
+        cursor = connection.cursor()
+
+        cursor.execute(
+            """
+            DELETE FROM match_maps
+            WHERE series_id = ?
+            """,
+            (series_id,),
+        )
+
     
     def save_full_series(self, series: MatchSeries):
         connection = self.database.get_connection()
@@ -117,6 +170,11 @@ class MatchRepository:
             existing_series_id = self.find_existing_series_id(connection, series)
 
             if existing_series_id is not None:
+                self.update_series(connection, existing_series_id, series)
+                self.delete_maps_by_series_id(connection, existing_series_id)
+                self.save_maps(connection, existing_series_id, series.maps)
+                connection.commit()
+
                 return existing_series_id
 
             series_id = self.save_series(connection, series)
