@@ -178,6 +178,18 @@ LiquipediaClient
 
 As paginas coletadas sao definidas em `TARGET_PAGES`, no `config.py`.
 
+### `inspect_database.py`
+
+Carrega as tabelas SQLite em DataFrames pandas para facilitar a validacao dos
+dados coletados.
+
+O script exibe:
+
+- total de series e mapas
+- quantidade de series por campeonato
+- partidas validas
+- registros incompletos ou invalidos
+
 ## Como Rodar
 
 Os exemplos abaixo assumem terminal bash no VS Code em ambiente Windows.
@@ -204,6 +216,12 @@ Os exemplos abaixo assumem terminal bash no VS Code em ambiente Windows.
 
 ```bash
 ./.venv/Scripts/python.exe -c "from database import Database; db=Database(); conn=db.get_connection(); print(conn.execute('SELECT COUNT(*) FROM match_series').fetchone()[0]); print(conn.execute('SELECT COUNT(*) FROM match_maps').fetchone()[0]); conn.close()"
+```
+
+### Inspecionar o banco com pandas
+
+```bash
+./.venv/Scripts/python.exe ./inspect_database.py
 ```
 
 A coleta atualmente usa as paginas configuradas em `TARGET_PAGES`:
@@ -252,11 +270,11 @@ Concluido:
 - persistencia de series e mapas
 - orquestrador final de coleta
 - upsert de series ja coletadas
+- inspecao dos dados com pandas
 
 Melhorias futuras:
 
 - limpar registros fake usados durante testes manuais
-- criar script de inspecao do banco
 - normalizar `match_datetime`
 - criar testes automatizados com `pytest`
 - ampliar suporte a outras estruturas da Liquipedia
