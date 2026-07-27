@@ -7,6 +7,7 @@ Objetivo:
 - manter a logica de acesso separada do parser
 """
 
+import re
 import time
 
 import requests
@@ -166,7 +167,99 @@ class LiquipediaClient:
         }
 
         return params
-        
+
+    def extract_candidate_pages(self, wikitext):
+        """
+        Extrai páginas candidatas a partir de um wikitexto da Liquipedia.
+
+        O objetivo é encontrar links para páginas de eventos, estágios e
+        resultados recentes sem exigir uma lista manual de URLs.
+        """
+        if not wikitext:
+            return []
+
+        candidates = set()
+
+        for match in re.finditer(r"\[\[([^\]|]+)(?:\|[^\]]*)?\]\]", wikitext):
+            raw_value = match.group(1).strip()
+            if not raw_value:
+                continue
+
+            if raw_value.startswith(("Template:", "Category:", "File:", "User:")):
+                continue
+
+            if "/" not in raw_value and " " not in raw_value:
+                continue
+
+            candidates.add(raw_value)
+
+        for match in re.finditer(r"https://liquipedia\.net/counterstrike/([^\s\]\)\"']+)", wikitext):
+            raw_value = match.group(1).strip()
+            if not raw_value:
+                continue
+
+            if raw_value.startswith(("Template:", "Category:", "File:", "User:")):
+                continue
+
+            candidates.add(raw_value)
+
+        return sorted(candidates)
+
+    def filter_relevant_pages(self, candidate_pages):
+        """
+        Filtra páginas candidatas para manter apenas páginas de eventos
+        e resultados relevantes para a coleta.
+        """
+        if not candidate_pages:
+            return []
+
+        relevant = []
+        current_year = time.localtime().tm_year
+        keywords = [
+            r"(blast|esl|pgl|iem|major|championships|open|league|premier|spring|fall|summer|winter|cologne|masters)",
+            r"(cct|esea|fissure|circuit|stars)",
+        ]
+        pattern = re.compile("|".join(keywords), re.IGNORECASE)
+        season_pattern = re.compile(r"/(20\d{2}|season|spring|summer|fall|winter)", re.IGNORECASE)
+
+        for page in candidate_pages:
+            if page.startswith(("Template:", "Category:", "File:", "User:")):
+                continue
+
+            if page.startswith("Portal:"):
+                continue
+
+            if "/" not in page:
+                continue
+
+            if not pattern.search(page):
+                continue
+
+            has_recent_year = f"/{current_year}" in page or f"/{current_year - 1}" in page
+            has_year_token = re.search(r"/20\d{2}", page) is not None
+            has_season_token = season_pattern.search(page) is not None
+
+            if not has_recent_year and not has_year_token and not has_season_token:
+                continue
+
+            relevant.append(page)
+
+        return relevant
+
+    def has_match_content(self, wikitext):
+        """
+        Verifica se um wikitexto parece conter blocos de partidas reais.
+        """
+        if not wikitext:
+            return False
+
+        if re.search(r"\{\{Match(?:\||list)", wikitext):
+            return True
+
+        if re.search(r"\|opponent1=.*\|opponent2=.*\|date=", wikitext, re.DOTALL):
+            return True
+
+        return False
 
     def request(self, params, is_parse=False):
         """

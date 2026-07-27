@@ -33,15 +33,28 @@ class LiquipediaMatchParser:
     def extract_match_blocks(self, wikitext):
         if not wikitext:
             return []
-        
+
         blocks = []
         parts = wikitext.split("{{Match")
 
         for part in parts[1:]:
             block = "{{Match" + part
-            blocks.append(block)
+            if self._looks_like_match_block(block):
+                blocks.append(block)
 
         return blocks
+
+    def _looks_like_match_block(self, block):
+        if not block:
+            return False
+
+        if "|opponent1=" not in block or "|opponent2=" not in block:
+            return False
+
+        if "|date=" not in block and "|time=" not in block:
+            return False
+
+        return True
     
     def parse_match_block(self, match_block, page_title):
         opponent1_block = self.extract_field(match_block, "opponent1")

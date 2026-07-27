@@ -56,7 +56,18 @@ TEST_PAGE_URL = "https://liquipedia.net/counterstrike/Portal:Matches"
 # BLOCO 6.1: PAGINAS-ALVO DA COLETA
 TARGET_PAGES = [
     "CS_Asia_Championships/2026",
+    "Intel_Extreme_Masters/2026/Cologne",
     "Intel_Extreme_Masters/2026/Cologne/Stage_1",
+    "Intel_Extreme_Masters/2026/Cologne/Stage_2",
+    "Intel_Extreme_Masters/2026/Cologne/Playoffs",
+    "BLAST/Open/2026/Spring",
+    "ESL/Pro_League",
+    "Intel_Extreme_Masters",
+    "PGL/2026",
+    "CCT",
+    "ESEA",
+    "FISSURE",
+    "Circuit_Stars",
 ]
 
 # BLOCO 7: CONFIGURACOES DE LOG

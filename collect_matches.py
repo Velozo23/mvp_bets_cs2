@@ -1,4 +1,4 @@
-from config import TARGET_PAGES
+from config import TEST_PAGE_MATCHES_PORTAL, TARGET_PAGES
 from database import Database
 from liquipedia_client import LiquipediaClient
 from liquipedia_parser import LiquipediaMatchParser
@@ -64,6 +64,26 @@ def collect_page(page_title, client, parser, validator, repository):
     return saved_count
 
 
+def discover_pages(client, initial_pages):
+    discovered = set(initial_pages)
+
+    for page_title in initial_pages:
+        wikitext = client.get_page_content(page_title)
+
+        if not wikitext:
+            continue
+
+        candidates = client.extract_candidate_pages(wikitext)
+        relevant_pages = client.filter_relevant_pages(candidates)
+
+        for candidate_page in relevant_pages:
+            candidate_wikitext = client.get_page_content(candidate_page)
+            if candidate_wikitext and client.has_match_content(candidate_wikitext):
+                discovered.add(candidate_page)
+
+    return sorted(discovered)
+
+
 def main():
     database = Database()
     database.initialize()
@@ -73,9 +93,14 @@ def main():
     validator = MatchValidator()
     repository = MatchRepository(database)
 
+    initial_pages = list(TARGET_PAGES) + [TEST_PAGE_MATCHES_PORTAL]
+    pages_to_collect = discover_pages(client, initial_pages)
+
+    print(f"Paginas descobertas: {len(pages_to_collect)}")
+
     total_saved = 0
 
-    for page_title in TARGET_PAGES:
+    for page_title in pages_to_collect:
         saved_count = collect_page(
             page_title,
             client,
