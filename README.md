@@ -21,7 +21,8 @@ Liquipedia API
 ```
 
 Nesta fase, o MVP ja cobre o fluxo completo de coleta, parsing, validacao,
-upsert e persistencia em SQLite.
+upsert e persistencia em SQLite. O projeto tambem mantem um catalogo local de
+times e logos oficiais sincronizados pela API da Liquipedia.
 
 ## Escopo Do MVP
 
@@ -162,6 +163,24 @@ Quando uma serie ja existe, o repository atualiza os dados da serie, remove os
 mapas antigos associados e insere novamente os mapas parseados no estado mais
 recente.
 
+### `team_repository.py`
+
+Mantem o catalogo de times nas tabelas `teams` e `team_aliases`. Os aliases
+preservam os nomes usados nas partidas (`navi`, `vit`, `tl`) e apontam para o
+nome canonico retornado pela Liquipedia.
+
+### `sync_team_logos.py`
+
+Resolve os aliases em lote usando `TeamIcon` pela MediaWiki API, seleciona a
+variante apropriada para dark mode e salva os arquivos em `data/team_logos/`.
+Os metadados e a URL de origem ficam no SQLite; os binarios nao sao armazenados
+no banco nem versionados pelo Git.
+
+### `backfill_event_context.py`
+
+Preenche `event_name` e `stage` para registros antigos a partir da página de
+origem. As novas coletas já recebem esses campos diretamente no parser.
+
 ### `collect_matches.py`
 
 Orquestrador principal do MVP.
@@ -176,7 +195,12 @@ LiquipediaClient
 -> SQLite
 ```
 
-As paginas coletadas sao definidas em `TARGET_PAGES`, no `config.py`.
+As sementes manuais ficam em `TARGET_PAGES`, no `config.py`. A coleta tambem
+descobre automaticamente eventos recentes das organizadoras configuradas em
+`ORGANIZER_PAGE_PREFIXES`. Para isso, combina o catalogo tecnico
+`Liquipedia:Tournaments` com os links renderizados de `Portal:Tournaments`.
+Atualmente a descoberta cobre BLAST, ESL/IEM, PGL, CCT, Circuit X e
+Circuit Stars, incluindo uma camada de subpaginas como Qualifier e Playoffs.
 
 ### `inspect_database.py`
 
@@ -212,6 +236,44 @@ Os exemplos abaixo assumem terminal bash no VS Code em ambiente Windows.
 ./.venv/Scripts/python.exe ./collect_matches.py
 ```
 
+### Sincronizar o catalogo e os logos dos times
+
+```bash
+./.venv/Scripts/python.exe ./sync_team_logos.py
+```
+
+O comando reutiliza logos existentes. Para baixar novamente todos os arquivos:
+
+```bash
+./.venv/Scripts/python.exe ./sync_team_logos.py --force
+```
+
+As consultas respeitam os intervalos configurados para a API, usam o
+`User-Agent` identificado do projeto e mantem os resultados em cache local.
+Times sem correspondencia continuam disponiveis para o frontend por meio do
+fallback visual.
+
+### Corrigir evento e fase de registros existentes
+
+```bash
+./.venv/Scripts/python.exe ./backfill_event_context.py
+```
+
+Para apenas conferir a quantidade de registros afetados:
+
+```bash
+./.venv/Scripts/python.exe ./backfill_event_context.py --dry-run
+```
+
+### Validar partidas e eventos contra a origem
+
+```bash
+./.venv/Scripts/python.exe ./validate_match_events.py
+```
+
+O relatório confirma cada registro pela combinação de times e data diretamente
+na página oficial indicada em `page_title`, sem alterar o banco.
+
 ### Consultar contagem no SQLite
 
 ```bash
@@ -224,14 +286,17 @@ Os exemplos abaixo assumem terminal bash no VS Code em ambiente Windows.
 ./.venv/Scripts/python.exe ./inspect_database.py
 ```
 
-A coleta atualmente usa as paginas configuradas em `TARGET_PAGES`:
+A coleta usa as sementes configuradas em `TARGET_PAGES`:
 
 ```text
 CS_Asia_Championships/2026
 Intel_Extreme_Masters/2026/Cologne/Stage_1
 ```
 
-Essa lista fica configurada no `config.py`.
+Essa lista e complementada pela descoberta automatica. Os catalogos, prefixos
+de organizadoras, anos aceitos e profundidade maxima ficam configurados em
+`DISCOVERY_CATALOG_PAGES`, `DISCOVERY_RENDERED_CATALOG_PAGES`,
+`ORGANIZER_PAGE_PREFIXES`, `DISCOVERY_YEARS_BACK` e `DISCOVERY_MAX_DEPTH`.
 
 ## Exemplo De Saida Do Parser
 
@@ -271,6 +336,8 @@ Concluido:
 - orquestrador final de coleta
 - upsert de series ja coletadas
 - inspecao dos dados com pandas
+- catalogo normalizado de times e aliases
+- sincronizacao e cache local dos logos oficiais
 
 Melhorias futuras:
 

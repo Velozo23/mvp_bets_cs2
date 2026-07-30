@@ -8,6 +8,7 @@ Objetivo:
 """
 
 from config import DATA_SOURCE
+from event_context import event_context_from_page, match_stage, parse_match_datetime
 from models import MatchSeries, MatchMap
 import re
 
@@ -71,13 +72,25 @@ class LiquipediaMatchParser:
         series_score_team1, series_score_team2 = self.calculate_series_score(maps)
         series_winner = self.infer_series_winner(series_score_team1, series_score_team2)
         series_type = self.infer_series_type(maps)
+        event_name, stage = event_context_from_page(page_title)
+        match_datetime = parse_match_datetime(date_raw)
+        stage = match_stage(
+            event_name,
+            stage,
+            team1_name,
+            team2_name,
+            match_datetime,
+        )
 
         series = MatchSeries(
             source=DATA_SOURCE,
             page_title=page_title,
+            event_name=event_name,
+            stage=stage,
             team1_name=team1_name,
             team2_name=team2_name,
             match_datetime_raw=date_raw,
+            match_datetime=match_datetime,
             match_finished=match_finished,
             series_type=series_type,
             series_score_team1=series_score_team1,

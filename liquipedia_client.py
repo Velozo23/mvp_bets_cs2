@@ -9,10 +9,12 @@ Objetivo:
 
 import re
 import time
+from urllib.parse import urljoin
 
 import requests
 
 from config import (
+    API_BASE_URL,
     API_ENDPOINT,
     API_TIMEOUT_SECONDS,
     DEFAULT_ACTION,
@@ -132,6 +134,23 @@ class LiquipediaClient:
         
         return text_data
 
+    def get_page_links(self, page_title):
+        """Retorna links internos depois da expansao dos templates da pagina."""
+        params = {
+            "action": "parse",
+            "format": DEFAULT_FORMAT,
+            "formatversion": DEFAULT_FORMAT_VERSION,
+            "page": page_title,
+            "prop": "links",
+        }
+        data = self.request(params, is_parse=True)
+        links = data.get("parse", {}).get("links", [])
+        return sorted({
+            item.get("title", "").strip()
+            for item in links
+            if isinstance(item, dict) and item.get("title")
+        })
+
     def build_query_params(self, page_title):
         """
         Monta os parametros da chamada action=query.
@@ -180,6 +199,15 @@ class LiquipediaClient:
 
         candidates = set()
 
+        # Catalogo tecnico da Liquipedia:
+        # **BLAST/Bounty/2026/Summer|BLAST Bounty Summer 2026|iconfile=...
+        for match in re.finditer(r"^\s*\*+\s*([^|\r\n]+)\|", wikitext, re.MULTILINE):
+            raw_value = match.group(1).strip()
+            if "/" in raw_value and not raw_value.startswith(
+                ("Template:", "Category:", "File:", "User:")
+            ):
+                candidates.add(raw_value)
+
         for match in re.finditer(r"\[\[([^\]|]+)(?:\|[^\]]*)?\]\]", wikitext):
             raw_value = match.group(1).strip()
             if not raw_value:
@@ -204,6 +232,36 @@ class LiquipediaClient:
             candidates.add(raw_value)
 
         return sorted(candidates)
+
+    def filter_organizer_pages(self, candidate_pages, organizer_prefixes, years_back=1):
+        """Mantem eventos recentes pertencentes as organizadoras configuradas."""
+        if not candidate_pages:
+            return []
+
+        prefixes = tuple(
+            prefix.casefold()
+            for values in organizer_prefixes.values()
+            for prefix in values
+        )
+        current_year = time.localtime().tm_year
+        accepted_years = {
+            str(current_year - offset)
+            for offset in range(max(0, years_back) + 1)
+        }
+        relevant = []
+
+        for page in candidate_pages:
+            normalized = page.replace(" ", "_").strip()
+            if not normalized.casefold().startswith(prefixes):
+                continue
+
+            years = set(re.findall(r"(?:^|/)(20\d{2})(?:/|$)", normalized))
+            if years and years.isdisjoint(accepted_years):
+                continue
+
+            relevant.append(normalized)
+
+        return sorted(set(relevant))
 
     def filter_relevant_pages(self, candidate_pages):
         """
@@ -236,10 +294,9 @@ class LiquipediaClient:
                 continue
 
             has_recent_year = f"/{current_year}" in page or f"/{current_year - 1}" in page
-            has_year_token = re.search(r"/20\d{2}", page) is not None
             has_season_token = season_pattern.search(page) is not None
 
-            if not has_recent_year and not has_year_token and not has_season_token:
+            if not has_recent_year and not has_season_token:
                 continue
 
             relevant.append(page)
@@ -283,6 +340,22 @@ class LiquipediaClient:
 
         return response.json()
 
+    def get_binary(self, url):
+        """
+        Baixa um arquivo binario respeitando o mesmo intervalo e User-Agent.
+
+        Usado para manter em cache local imagens resolvidas pela API.
+        """
+        self.wait_before_request()
+        response = self.session.get(
+            urljoin(API_BASE_URL, url),
+            headers=self.headers,
+            timeout=self.timeout,
+        )
+        self.last_request_time = time.time()
+        response.raise_for_status()
+        return response
+
 
     def wait_before_request(self, is_parse=False):
         """
@@ -302,4 +375,3 @@ class LiquipediaClient:
 
         if remaining_time > 0:
             time.sleep(remaining_time)
-
