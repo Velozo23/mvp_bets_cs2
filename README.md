@@ -199,8 +199,9 @@ As sementes manuais ficam em `TARGET_PAGES`, no `config.py`. A coleta tambem
 descobre automaticamente eventos recentes das organizadoras configuradas em
 `ORGANIZER_PAGE_PREFIXES`. Para isso, combina o catalogo tecnico
 `Liquipedia:Tournaments` com os links renderizados de `Portal:Tournaments`.
-Atualmente a descoberta cobre BLAST, ESL/IEM, PGL, CCT, Circuit X e
-Circuit Stars, incluindo uma camada de subpaginas como Qualifier e Playoffs.
+Atualmente a descoberta cobre BLAST, ESL/IEM, Esports World Cup, PGL, CCT,
+Circuit X e Circuit Stars, incluindo uma camada de subpaginas como Qualifier
+e Playoffs.
 
 ### `inspect_database.py`
 
@@ -289,6 +290,7 @@ na página oficial indicada em `page_title`, sem alterar o banco.
 A coleta usa as sementes configuradas em `TARGET_PAGES`:
 
 ```text
+Esports_World_Cup/2026
 CS_Asia_Championships/2026
 Intel_Extreme_Masters/2026/Cologne/Stage_1
 ```

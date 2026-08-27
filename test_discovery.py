@@ -7,6 +7,7 @@ from liquipedia_client import LiquipediaClient
 PREFIXES = {
     "BLAST": ("BLAST/",),
     "ESL/IEM": ("ESL/", "Intel_Extreme_Masters/"),
+    "Esports World Cup": ("Esports_World_Cup/",),
     "PGL": ("PGL/",),
     "CCT": ("CCT/",),
     "Circuit X": ("Circuit_X/", "Circuit_Stars/"),
@@ -54,6 +55,7 @@ class DiscoveryTests(unittest.TestCase):
         client = LiquipediaClient()
         candidates = [
             "BLAST/Bounty/2026/Summer",
+            "Esports_World_Cup/2026",
             "Intel_Extreme_Masters/2026/Atlanta",
             "PGL/2026/Astana",
             "CCT/2026/Europe/Series_5",
@@ -65,6 +67,7 @@ class DiscoveryTests(unittest.TestCase):
         self.assertNotIn("Other_Event/2026/Summer", result)
         self.assertNotIn("BLAST/Bounty/2022/Spring", result)
         self.assertIn("BLAST/Bounty/2026/Summer", result)
+        self.assertIn("Esports_World_Cup/2026", result)
         self.assertIn("Circuit_X/2026/Finals", result)
 
     def test_discovers_bounty_and_qualifier_from_catalog(self):

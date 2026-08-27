@@ -55,6 +55,7 @@ TEST_PAGE_URL = "https://liquipedia.net/counterstrike/Portal:Matches"
 
 # BLOCO 6.1: PAGINAS-ALVO DA COLETA
 TARGET_PAGES = [
+    "Esports_World_Cup/2026",
     "CS_Asia_Championships/2026",
     "Intel_Extreme_Masters/2026/Cologne",
     "Intel_Extreme_Masters/2026/Cologne/Stage_1",
@@ -90,6 +91,7 @@ DISCOVERY_RENDERED_CATALOG_PAGES = [
 ORGANIZER_PAGE_PREFIXES = {
     "BLAST": ("BLAST/",),
     "ESL/IEM": ("ESL/", "Intel_Extreme_Masters/"),
+    "Esports World Cup": ("Esports_World_Cup/",),
     "PGL": ("PGL/",),
     "CCT": ("CCT/",),
     "Circuit X": ("Circuit_X/", "Circuit_Stars/"),
